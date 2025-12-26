@@ -19,18 +19,38 @@ def initialize_firebase():
         firebase_admin.get_app()
         _firebase_initialized = True
     except ValueError:
-        # Initialize with service account
-        cred_path = os.path.join(os.path.dirname(__file__), '../../firebase-service-account.json')
+        # Try to initialize from environment variables first (for production)
+        project_id = os.getenv('FIREBASE_PROJECT_ID')
+        private_key = os.getenv('FIREBASE_PRIVATE_KEY')
+        client_email = os.getenv('FIREBASE_CLIENT_EMAIL')
         
-        if not os.path.exists(cred_path):
-            print(f"⚠️  Firebase service account not found at {cred_path}")
-            print("Phone authentication will not work until you add the service account JSON file.")
-            return
-        
-        cred = credentials.Certificate(cred_path)
-        firebase_admin.initialize_app(cred)
-        _firebase_initialized = True
-        print("✅ Firebase Admin SDK initialized")
+        if project_id and private_key and client_email:
+            # Initialize from environment variables
+            cred_dict = {
+                "type": "service_account",
+                "project_id": project_id,
+                "private_key": private_key.replace('\\n', '\n'),  # Fix escaped newlines
+                "client_email": client_email,
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+            _firebase_initialized = True
+            print("✅ Firebase Admin SDK initialized from environment variables")
+        else:
+            # Fall back to service account file (for local development)
+            cred_path = os.path.join(os.path.dirname(__file__), '../../firebase-service-account.json')
+            
+            if not os.path.exists(cred_path):
+                print(f"⚠️  Firebase service account not found at {cred_path}")
+                print("⚠️  Firebase environment variables not set")
+                print("Phone authentication will not work until you add the service account JSON file or set environment variables.")
+                return
+            
+            cred = credentials.Certificate(cred_path)
+            firebase_admin.initialize_app(cred)
+            _firebase_initialized = True
+            print("✅ Firebase Admin SDK initialized from file")
 
 def verify_firebase_token(token: str) -> dict:
     """
