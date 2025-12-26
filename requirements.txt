@@ -34,8 +34,8 @@ pydantic==2.5.3
 pydantic-settings==2.1.0
 email-validator==2.1.0
 
-# HTTP client
-httpx==0.27.0
+# HTTP client (version resolved by firebase-admin)
+httpx
 
 # Utilities
 python-dateutil==2.8.2
