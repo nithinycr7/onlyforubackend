@@ -26,10 +26,18 @@ def initialize_firebase():
         
         if project_id and private_key and client_email:
             # Initialize from environment variables
+            # Handle different newline formats in the private key
+            # Render might escape newlines differently
+            formatted_key = private_key
+            # Replace literal \n with actual newlines
+            formatted_key = formatted_key.replace('\\n', '\n')
+            # Also handle double-escaped newlines
+            formatted_key = formatted_key.replace('\\\\n', '\n')
+            
             cred_dict = {
                 "type": "service_account",
                 "project_id": project_id,
-                "private_key": private_key.replace('\\n', '\n'),  # Fix escaped newlines
+                "private_key": formatted_key,
                 "client_email": client_email,
                 "token_uri": "https://oauth2.googleapis.com/token",
             }
