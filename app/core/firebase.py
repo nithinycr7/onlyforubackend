@@ -27,12 +27,17 @@ def initialize_firebase():
         if project_id and private_key and client_email:
             # Initialize from environment variables
             # Handle different newline formats in the private key
-            # Render might escape newlines differently
-            formatted_key = private_key
+            print(f"🔧 Firebase private key length: {len(private_key)}")
+            print(f"🔧 First 50 chars: {private_key[:50]}")
+            
+            # The key might have literal \n (two characters) or actual newlines
             # Replace literal \n with actual newlines
-            formatted_key = formatted_key.replace('\\n', '\n')
-            # Also handle double-escaped newlines
-            formatted_key = formatted_key.replace('\\\\n', '\n')
+            if '\\n' in private_key:
+                formatted_key = private_key.replace('\\n', '\n')
+                print("🔧 Replaced escaped \\n with newlines")
+            else:
+                formatted_key = private_key
+                print("🔧 Key already has proper newlines")
             
             cred_dict = {
                 "type": "service_account",
