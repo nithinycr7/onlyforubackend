@@ -78,7 +78,6 @@ async def get_trending_creators(
     result = await db.execute(
         select(CreatorProfile)
         .options(selectinload(CreatorProfile.packages))
-        .where(CreatorProfile.verification_status == VerificationStatus.APPROVED)
         .order_by(CreatorProfile.follower_count.desc())
         .limit(limit)
     )
