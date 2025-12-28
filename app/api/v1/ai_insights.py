@@ -26,6 +26,8 @@ async def get_ai_summary(
     """
     Get AI-generated summary for a booking.
     
+    **CREATOR-ONLY**: Only the creator can view AI summaries. Fans cannot see them.
+    
     Returns:
         - summary: Concise 1-2 sentence summary
         - sentiment: Emotional tone (anxious, excited, confused, etc.)
@@ -33,33 +35,34 @@ async def get_ai_summary(
         - key_points: Array of key points to address
         - processing_status: pending, processing, completed, or failed
     """
+    # Get creator profile - ONLY creators can access AI summaries
+    creator_result = await db.execute(
+        select(CreatorProfile).filter(CreatorProfile.user_id == current_user.id)
+    )
+    creator_profile = creator_result.scalar_one_or_none()
+    
+    if not creator_profile:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only creators can view AI summaries"
+        )
+    
     # Get booking
     result = await db.execute(
-        select(Booking).filter(Booking.id == booking_id)
+        select(Booking).filter(
+            Booking.id == booking_id,
+            Booking.creator_id == creator_profile.id
+        )
     )
     booking = result.scalar_one_or_none()
     
     if not booking:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Booking not found"
+            detail="Booking not found or you are not the creator for this booking"
         )
     
-    # Check authorization (fan or creator can view)
-    if booking.fan_id != current_user.id:
-        # Check if user is the creator
-        creator_result = await db.execute(
-            select(CreatorProfile).filter(CreatorProfile.user_id == current_user.id)
-        )
-        creator_profile = creator_result.scalar_one_or_none()
-        
-        if not creator_profile or booking.creator_id != creator_profile.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to view this booking"
-            )
-    
-    # Return AI summary data
+    # Return AI summary data (CREATOR-ONLY)
     return {
         "booking_id": str(booking.id),
         "ai_summary": booking.ai_summary,
@@ -153,34 +156,38 @@ async def get_processing_status(
     Get current AI processing status for a booking.
     Used for polling while AI processes the question.
     
+    **CREATOR-ONLY**: Only the creator can check AI processing status.
+    
     Returns:
         - status: pending, processing, completed, or failed
         - error: Error message if failed
     """
+    # Get creator profile - ONLY creators can access
+    creator_result = await db.execute(
+        select(CreatorProfile).filter(CreatorProfile.user_id == current_user.id)
+    )
+    creator_profile = creator_result.scalar_one_or_none()
+    
+    if not creator_profile:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only creators can check AI processing status"
+        )
+    
     # Get booking
     result = await db.execute(
-        select(Booking).filter(Booking.id == booking_id)
+        select(Booking).filter(
+            Booking.id == booking_id,
+            Booking.creator_id == creator_profile.id
+        )
     )
     booking = result.scalar_one_or_none()
     
     if not booking:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Booking not found"
+            detail="Booking not found or you are not the creator for this booking"
         )
-    
-    # Check authorization
-    if booking.fan_id != current_user.id:
-        creator_result = await db.execute(
-            select(CreatorProfile).filter(CreatorProfile.user_id == current_user.id)
-        )
-        creator_profile = creator_result.scalar_one_or_none()
-        
-        if not creator_profile or booking.creator_id != creator_profile.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to view this booking"
-            )
     
     return {
         "booking_id": str(booking.id),
