@@ -1,0 +1,362 @@
+"""
+AI Service Layer for FansFunFoffer
+Handles AI-powered question summarization, sentiment analysis, and multilingual processing
+using Azure OpenAI, Azure Speech Services, and Azure Translator.
+"""
+
+import asyncio
+import logging
+from typing import Dict, List, Optional, Any
+from uuid import UUID
+import json
+
+from openai import AzureOpenAI
+from azure.cognitiveservices.speech import (
+    SpeechConfig, 
+    AudioConfig, 
+    SpeechRecognizer,
+    ResultReason
+)
+import requests
+
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+class AIService:
+    """Azure AI service for processing fan questions."""
+    
+    def __init__(self):
+        """Initialize Azure AI clients."""
+        # Azure OpenAI client
+        if settings.azure_openai_api_key and settings.azure_openai_endpoint:
+            self.openai_client = AzureOpenAI(
+                api_key=settings.azure_openai_api_key,
+                api_version=settings.azure_openai_api_version,
+                azure_endpoint=settings.azure_openai_endpoint
+            )
+        else:
+            self.openai_client = None
+            logger.warning("Azure OpenAI credentials not configured")
+        
+        # Azure Speech config
+        if settings.azure_speech_key and settings.azure_speech_region:
+            self.speech_config = SpeechConfig(
+                subscription=settings.azure_speech_key,
+                region=settings.azure_speech_region
+            )
+        else:
+            self.speech_config = None
+            logger.warning("Azure Speech credentials not configured")
+    
+    async def detect_language(self, text: str) -> str:
+        """
+        Detect language from text using Azure Translator.
+        
+        Args:
+            text: Input text
+            
+        Returns:
+            Language code (e.g., 'en', 'te', 'hi')
+        """
+        if not settings.azure_translator_key:
+            logger.warning("Azure Translator not configured, defaulting to English")
+            return "en"
+        
+        try:
+            endpoint = f"{settings.azure_translator_endpoint}/detect"
+            headers = {
+                'Ocp-Apim-Subscription-Key': settings.azure_translator_key,
+                'Ocp-Apim-Subscription-Region': settings.azure_translator_region,
+                'Content-type': 'application/json'
+            }
+            body = [{'text': text[:1000]}]  # Limit to 1000 chars for detection
+            
+            response = requests.post(endpoint, headers=headers, json=body, params={'api-version': '3.0'})
+            response.raise_for_status()
+            
+            result = response.json()
+            if result and len(result) > 0:
+                detected_lang = result[0]['language']
+                logger.info(f"Detected language: {detected_lang}")
+                return detected_lang
+            
+            return "en"
+        except Exception as e:
+            logger.error(f"Language detection failed: {str(e)}")
+            return "en"
+    
+    async def translate_text(self, text: str, target_language: str = "en", source_language: Optional[str] = None) -> str:
+        """
+        Translate text using Azure Translator.
+        
+        Args:
+            text: Text to translate
+            target_language: Target language code
+            source_language: Source language code (optional, auto-detect if None)
+            
+        Returns:
+            Translated text
+        """
+        if not settings.azure_translator_key:
+            logger.warning("Azure Translator not configured, returning original text")
+            return text
+        
+        try:
+            endpoint = f"{settings.azure_translator_endpoint}/translate"
+            headers = {
+                'Ocp-Apim-Subscription-Key': settings.azure_translator_key,
+                'Ocp-Apim-Subscription-Region': settings.azure_translator_region,
+                'Content-type': 'application/json'
+            }
+            params = {
+                'api-version': '3.0',
+                'to': target_language
+            }
+            if source_language:
+                params['from'] = source_language
+            
+            body = [{'text': text}]
+            
+            response = requests.post(endpoint, headers=headers, json=body, params=params)
+            response.raise_for_status()
+            
+            result = response.json()
+            if result and len(result) > 0 and 'translations' in result[0]:
+                translated = result[0]['translations'][0]['text']
+                logger.info(f"Translated from {source_language or 'auto'} to {target_language}")
+                return translated
+            
+            return text
+        except Exception as e:
+            logger.error(f"Translation failed: {str(e)}")
+            return text
+    
+    async def transcribe_audio_from_url(self, audio_url: str, language_hint: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Transcribe audio from URL using Azure Speech Services.
+        
+        Args:
+            audio_url: URL to audio file
+            language_hint: Optional language hint (e.g., 'te-IN', 'hi-IN', 'en-US')
+            
+        Returns:
+            Dict with 'transcription', 'language', and 'translation' (if not English)
+        """
+        if not self.speech_config:
+            logger.error("Azure Speech not configured")
+            return {
+                'transcription': '',
+                'language': 'en',
+                'translation': '',
+                'error': 'Azure Speech not configured'
+            }
+        
+        try:
+            # TODO: Download audio file from URL and transcribe
+            # For now, return placeholder
+            logger.info(f"Transcribing audio from: {audio_url}")
+            
+            # This is a placeholder - actual implementation will:
+            # 1. Download audio from Azure Blob
+            # 2. Use Azure Speech SDK to transcribe
+            # 3. Detect language if not provided
+            # 4. Translate to English if needed
+            
+            return {
+                'transcription': '[Audio transcription placeholder]',
+                'language': language_hint or 'en',
+                'translation': '[Translation placeholder]'
+            }
+        except Exception as e:
+            logger.error(f"Audio transcription failed: {str(e)}")
+            return {
+                'transcription': '',
+                'language': 'en',
+                'translation': '',
+                'error': str(e)
+            }
+    
+    async def summarize_question(
+        self, 
+        text: str, 
+        creator_language: str = "en",
+        include_sentiment: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Generate AI summary of fan question using Azure OpenAI.
+        
+        Args:
+            text: Combined question text (from all sources)
+            creator_language: Creator's preferred language for summary
+            include_sentiment: Whether to include sentiment analysis
+            
+        Returns:
+            Dict with 'summary', 'sentiment', 'stakes', 'key_points'
+        """
+        if not self.openai_client:
+            logger.error("Azure OpenAI not configured")
+            return {
+                'summary': text[:200] + '...' if len(text) > 200 else text,
+                'sentiment': 'neutral',
+                'stakes': 'medium',
+                'key_points': [],
+                'error': 'Azure OpenAI not configured'
+            }
+        
+        try:
+            # Build prompt for summarization
+            prompt = f"""You are an AI assistant helping creators understand fan questions quickly.
+
+Fan's question:
+{text}
+
+Please provide:
+1. A concise 1-2 sentence summary of the fan's main concern
+2. The emotional sentiment (choose one: anxious, excited, confused, neutral, grateful, frustrated)
+3. The stakes level (choose one: high, medium, low)
+4. 3-5 key points the creator should address
+
+Respond in JSON format:
+{{
+    "summary": "...",
+    "sentiment": "...",
+    "stakes": "...",
+    "key_points": ["point 1", "point 2", ...]
+}}"""
+
+            # Call Azure OpenAI
+            response = self.openai_client.chat.completions.create(
+                model=settings.azure_openai_deployment_name,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant that summarizes fan questions for creators."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=500,
+                response_format={"type": "json_object"}
+            )
+            
+            # Parse response
+            result_text = response.choices[0].message.content
+            result = json.loads(result_text)
+            
+            logger.info(f"Generated AI summary: {result.get('summary', '')[:100]}...")
+            
+            return {
+                'summary': result.get('summary', ''),
+                'sentiment': result.get('sentiment', 'neutral'),
+                'stakes': result.get('stakes', 'medium'),
+                'key_points': result.get('key_points', [])
+            }
+        except Exception as e:
+            logger.error(f"AI summarization failed: {str(e)}")
+            return {
+                'summary': text[:200] + '...' if len(text) > 200 else text,
+                'sentiment': 'neutral',
+                'stakes': 'medium',
+                'key_points': [],
+                'error': str(e)
+            }
+    
+    async def process_booking_question(
+        self,
+        question_text: Optional[str] = None,
+        question_audio_url: Optional[str] = None,
+        question_video_url: Optional[str] = None,
+        creator_language: str = "en"
+    ) -> Dict[str, Any]:
+        """
+        Process all question inputs and generate unified AI summary.
+        
+        Args:
+            question_text: Text question
+            question_audio_url: Audio file URL
+            question_video_url: Video file URL
+            creator_language: Creator's preferred language
+            
+        Returns:
+            Dict with AI processing results
+        """
+        try:
+            all_text_content = []
+            detected_languages = {}
+            transcriptions = {}
+            translations = {}
+            
+            # Process text
+            if question_text:
+                all_text_content.append(question_text)
+                detected_lang = await self.detect_language(question_text)
+                detected_languages['text'] = detected_lang
+                
+                # Translate if not English
+                if detected_lang != 'en':
+                    translation = await self.translate_text(question_text, target_language='en', source_language=detected_lang)
+                    translations['text_en'] = translation
+            
+            # Process audio
+            if question_audio_url:
+                audio_result = await self.transcribe_audio_from_url(question_audio_url)
+                transcriptions['audio'] = audio_result['transcription']
+                detected_languages['audio'] = audio_result['language']
+                
+                if audio_result['language'] != 'en' and audio_result['translation']:
+                    translations['audio_en'] = audio_result['translation']
+                    all_text_content.append(audio_result['translation'])
+                else:
+                    all_text_content.append(audio_result['transcription'])
+            
+            # Process video (extract audio and transcribe)
+            if question_video_url:
+                # For now, treat video same as audio
+                video_result = await self.transcribe_audio_from_url(question_video_url)
+                transcriptions['video'] = video_result['transcription']
+                detected_languages['video'] = video_result['language']
+                
+                if video_result['language'] != 'en' and video_result['translation']:
+                    translations['video_en'] = video_result['translation']
+                    all_text_content.append(video_result['translation'])
+                else:
+                    all_text_content.append(video_result['transcription'])
+            
+            # Combine all content
+            combined_text = "\n\n".join(filter(None, all_text_content))
+            
+            if not combined_text:
+                return {
+                    'ai_summary': 'No question content provided',
+                    'ai_sentiment': 'neutral',
+                    'ai_stakes': 'low',
+                    'ai_key_points': [],
+                    'detected_languages': detected_languages,
+                    'transcriptions': transcriptions,
+                    'translations': translations,
+                    'ai_processing_status': 'completed'
+                }
+            
+            # Generate AI summary
+            summary_result = await self.summarize_question(combined_text, creator_language)
+            
+            return {
+                'ai_summary': summary_result['summary'],
+                'ai_summary_language': creator_language,
+                'ai_sentiment': summary_result['sentiment'],
+                'ai_stakes': summary_result['stakes'],
+                'ai_key_points': summary_result['key_points'],
+                'detected_languages': detected_languages,
+                'transcriptions': transcriptions,
+                'translations': translations,
+                'ai_processing_status': 'completed'
+            }
+        except Exception as e:
+            logger.error(f"Booking question processing failed: {str(e)}")
+            return {
+                'ai_processing_status': 'failed',
+                'ai_processing_error': str(e)
+            }
+
+
+# Global AI service instance
+ai_service = AIService()

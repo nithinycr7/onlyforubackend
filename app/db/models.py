@@ -430,6 +430,20 @@ class Booking(Base):
     fan_rating = Column(Integer, nullable=True)
     fan_review = Column(Text, nullable=True)
     
+    # AI Processing (Phase 1: AI Integration)
+    ai_summary = Column(Text, nullable=True)
+    ai_summary_language = Column(String(10), nullable=True, server_default="en")
+    ai_sentiment = Column(String(20), nullable=True)  # 'anxious', 'excited', 'confused', 'neutral', etc.
+    ai_stakes = Column(String(20), nullable=True)  # 'high', 'medium', 'low'
+    ai_key_points = Column(JSONB, nullable=True)  # ["Point 1", "Point 2", ...]
+    ai_processing_status = Column(String(20), server_default="pending")  # 'pending', 'processing', 'completed', 'failed'
+    ai_processing_error = Column(Text, nullable=True)
+    
+    # Multilingual Processing
+    detected_languages = Column(JSONB, nullable=True)  # {"text": "en", "audio": "te", "video": "hi"}
+    transcriptions = Column(JSONB, nullable=True)  # {"audio": "transcribed text", "video": "transcribed text"}
+    translations = Column(JSONB, nullable=True)  # {"audio_en": "English translation", ...}
+    
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

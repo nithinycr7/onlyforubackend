@@ -65,6 +65,28 @@ class Settings(BaseSettings):
     azure_content_moderator_endpoint: str = ""
     azure_content_moderator_key: str = ""
     
+    # Azure AI Services (Phase 1: AI Integration)
+    # Azure OpenAI
+    azure_openai_api_key: str = ""
+    azure_openai_endpoint: str = ""
+    azure_openai_deployment_name: str = "gpt-4o-mini"
+    azure_openai_api_version: str = "2025-01-01-preview"
+    
+    # Azure Speech Services
+    azure_speech_key: str = ""
+    azure_speech_region: str = "centralindia"
+    
+    # Azure Translator
+    azure_translator_key: str = ""
+    azure_translator_region: str = "centralindia"
+    azure_translator_endpoint: str = "https://api.cognitive.microsofttranslator.com/"
+    
+    # AI Feature Flags
+    enable_ai_summaries: bool = True
+    enable_multilingual_processing: bool = True
+    max_audio_duration_secs: int = 600  # 10 minutes
+    max_video_duration_secs: int = 300  # 5 minutes
+    
     # CORS
     cors_origins: str = "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001"
     

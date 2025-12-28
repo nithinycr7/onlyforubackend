@@ -50,3 +50,8 @@ ruff==0.1.14
 # Misc
 setuptools>=69.0.0
 firebase-admin==7.1.0
+
+# Azure AI Services (Phase 1: AI Integration)
+openai==1.12.0
+azure-cognitiveservices-speech==1.35.0
+requests==2.31.0
