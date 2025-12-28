@@ -64,34 +64,42 @@ async def create_booking(
 @router.post("/bookings/{booking_id}/question", response_model=BookingResponse)
 async def submit_question(
     booking_id: UUID,
-    question_type: str = Form(...),  # 'text', 'audio', 'video'
+    question_type: str = Form(...),  # 'text', 'audio', 'video', 'image', 'multi'
     question_text: str = Form(None),
-    media: UploadFile = File(None),
+    
+    # Multi-format support: Accept multiple files per type
+    audio_files: List[UploadFile] = File(None),
+    video_files: List[UploadFile] = File(None),
+    image_files: List[UploadFile] = File(None),
+    
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Submit question for a booking.
-    Supports 3 formats: text, audio, video
+    Submit question for a booking with multi-format support.
+    Supports: text, audio, video, image, or multi (combination)
     
     Args:
         booking_id: Booking ID
-        question_type: 'text', 'audio', or 'video'
-        question_text: Text question (required for text type, optional for others)
-        media: Audio or video file (required for audio/video types)
+        question_type: 'text', 'audio', 'video', 'image', or 'multi'
+        question_text: Text question (optional)
+        audio_files: List of audio files (max 3)
+        video_files: List of video files (max 2)
+        image_files: List of image files (max 5)
     
     Flow:
     1. Validate booking belongs to user
-    2. Validate question type and required fields
-    3. Upload media to Azure Blob (if audio/video)
+    2. Validate question type and files
+    3. Upload all media to Azure Blob
     4. Update booking with question data
-    5. Change status to 'awaiting_response'
+    5. Trigger AI processing
+    6. Change status to 'awaiting_response'
     """
     # Validate question_type
-    if question_type not in ['text', 'audio', 'video']:
+    if question_type not in ['text', 'audio', 'video', 'image', 'multi']:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="question_type must be 'text', 'audio', or 'video'"
+            detail="question_type must be 'text', 'audio', 'video', 'image', or 'multi'"
         )
     
     # Get booking
@@ -117,83 +125,114 @@ async def submit_question(
             detail="Question already submitted"
         )
     
-    # Handle different question types
-    audio_url = None
-    video_url = None
+    # File limits
+    MAX_AUDIO_FILES = 3
+    MAX_VIDEO_FILES = 2
+    MAX_IMAGE_FILES = 5
     
-    if question_type == 'text':
-        # Text question - just need text
-        if not question_text:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="question_text is required for text questions"
-            )
+    # Validate file counts
+    if audio_files and len(audio_files) > MAX_AUDIO_FILES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Maximum {MAX_AUDIO_FILES} audio files allowed"
+        )
     
-    elif question_type == 'audio':
-        # Audio question - need audio file
-        if not media:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Audio file is required for audio questions"
-            )
-        
-        # Validate file type
-        if not media.content_type.startswith('audio/'):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File must be an audio file"
-            )
-        
-        # Upload to Azure Blob
-        try:
-            audio_data = await media.read()
-            file_extension = media.filename.split('.')[-1] if '.' in media.filename else 'mp3'
-            audio_url = await azure_storage.upload_question_audio(
-                file_data=audio_data,
-                booking_id=str(booking_id),
-                file_extension=file_extension
-            )
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to upload audio: {str(e)}"
-            )
+    if video_files and len(video_files) > MAX_VIDEO_FILES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Maximum {MAX_VIDEO_FILES} video files allowed"
+        )
     
-    elif question_type == 'video':
-        # Video question - need video file
-        if not media:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Video file is required for video questions"
-            )
-        
-        # Validate file type
-        if not media.content_type.startswith('video/'):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File must be a video file"
-            )
-        
-        # Upload to Azure Blob
-        try:
-            video_data = await media.read()
-            file_extension = media.filename.split('.')[-1] if '.' in media.filename else 'mp4'
-            video_url = await azure_storage.upload_question_video(
-                file_data=video_data,
-                booking_id=str(booking_id),
-                file_extension=file_extension
-            )
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to upload video: {str(e)}"
-            )
+    if image_files and len(image_files) > MAX_IMAGE_FILES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Maximum {MAX_IMAGE_FILES} image files allowed"
+        )
+    
+    # Upload all media files
+    audio_urls = []
+    video_urls = []
+    image_urls = []
+    
+    # Upload audio files
+    if audio_files:
+        for idx, audio_file in enumerate(audio_files):
+            if not audio_file.content_type or not audio_file.content_type.startswith('audio/'):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"File {audio_file.filename} must be an audio file"
+                )
+            
+            try:
+                audio_data = await audio_file.read()
+                file_extension = audio_file.filename.split('.')[-1] if '.' in audio_file.filename else 'mp3'
+                audio_url = await azure_storage.upload_question_audio(
+                    file_data=audio_data,
+                    booking_id=f"{booking_id}_audio_{idx}",
+                    file_extension=file_extension
+                )
+                audio_urls.append(audio_url)
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to upload audio file {idx+1}: {str(e)}"
+                )
+    
+    # Upload video files
+    if video_files:
+        for idx, video_file in enumerate(video_files):
+            if not video_file.content_type or not video_file.content_type.startswith('video/'):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"File {video_file.filename} must be a video file"
+                )
+            
+            try:
+                video_data = await video_file.read()
+                file_extension = video_file.filename.split('.')[-1] if '.' in video_file.filename else 'mp4'
+                video_url = await azure_storage.upload_question_video(
+                    file_data=video_data,
+                    booking_id=f"{booking_id}_video_{idx}",
+                    file_extension=file_extension
+                )
+                video_urls.append(video_url)
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to upload video file {idx+1}: {str(e)}"
+                )
+    
+    # Upload image files
+    if image_files:
+        for idx, image_file in enumerate(image_files):
+            if not image_file.content_type or not image_file.content_type.startswith('image/'):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"File {image_file.filename} must be an image file"
+                )
+            
+            try:
+                image_data = await image_file.read()
+                file_extension = image_file.filename.split('.')[-1] if '.' in image_file.filename else 'jpg'
+                # Reuse upload_question_video for now (same blob container)
+                image_url = await azure_storage.upload_question_video(
+                    file_data=image_data,
+                    booking_id=f"{booking_id}_image_{idx}",
+                    file_extension=file_extension
+                )
+                image_urls.append(image_url)
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to upload image file {idx+1}: {str(e)}"
+                )
     
     # Update booking
     booking.question_type = question_type
     booking.question_text = question_text
-    booking.question_audio_url = audio_url
-    booking.question_video_url = video_url
+    booking.question_audio_urls = audio_urls if audio_urls else None
+    booking.question_video_urls = video_urls if video_urls else None
+    booking.question_image_urls = image_urls if image_urls else None
     booking.question_submitted_at = datetime.utcnow()
     booking.status = BookingStatus.AWAITING_RESPONSE
     
@@ -218,8 +257,9 @@ async def submit_question(
             
             ai_result = await ai_service.process_booking_question(
                 question_text=booking.question_text,
-                question_audio_url=booking.question_audio_url,
-                question_video_url=booking.question_video_url,
+                question_audio_urls=booking.question_audio_urls,
+                question_video_urls=booking.question_video_urls,
+                question_image_urls=booking.question_image_urls,
                 creator_language=creator_language
             )
             

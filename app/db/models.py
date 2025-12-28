@@ -393,11 +393,15 @@ class Booking(Base):
     service_title = Column(String(255), nullable=True)
     service_subtitle = Column(String(255), nullable=True)
     
-    # Question
-    question_type = Column(String(20), nullable=True)  # 'text', 'audio', 'video'
+    # Question (Multi-Format Support)
+    question_type = Column(String(20), nullable=True)  # 'text', 'audio', 'video', 'image', 'multi'
     question_text = Column(Text, nullable=True)
-    question_audio_url = Column(Text, nullable=True)
-    question_video_url = Column(Text, nullable=True)
+    
+    # Multi-format media arrays (supports multiple files per type)
+    question_audio_urls = Column(JSONB, nullable=True)  # ["url1", "url2", ...]
+    question_video_urls = Column(JSONB, nullable=True)  # ["url1", "url2", ...]
+    question_image_urls = Column(JSONB, nullable=True)  # ["url1", "url2", ...]
+    
     question_submitted_at = Column(DateTime(timezone=True), nullable=True)
     
     # Response

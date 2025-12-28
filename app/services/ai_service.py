@@ -263,17 +263,20 @@ Respond in JSON format:
     async def process_booking_question(
         self,
         question_text: Optional[str] = None,
-        question_audio_url: Optional[str] = None,
-        question_video_url: Optional[str] = None,
+        question_audio_urls: Optional[List[str]] = None,
+        question_video_urls: Optional[List[str]] = None,
+        question_image_urls: Optional[List[str]] = None,
         creator_language: str = "en"
     ) -> Dict[str, Any]:
         """
         Process all question inputs and generate unified AI summary.
+        Supports multiple media files per type.
         
         Args:
             question_text: Text question
-            question_audio_url: Audio file URL
-            question_video_url: Video file URL
+            question_audio_urls: List of audio file URLs
+            question_video_urls: List of video file URLs
+            question_image_urls: List of image file URLs
             creator_language: Creator's preferred language
             
         Returns:
@@ -296,30 +299,38 @@ Respond in JSON format:
                     translation = await self.translate_text(question_text, target_language='en', source_language=detected_lang)
                     translations['text_en'] = translation
             
-            # Process audio
-            if question_audio_url:
-                audio_result = await self.transcribe_audio_from_url(question_audio_url)
-                transcriptions['audio'] = audio_result['transcription']
-                detected_languages['audio'] = audio_result['language']
-                
-                if audio_result['language'] != 'en' and audio_result['translation']:
-                    translations['audio_en'] = audio_result['translation']
-                    all_text_content.append(audio_result['translation'])
-                else:
-                    all_text_content.append(audio_result['transcription'])
+            # Process multiple audio files
+            if question_audio_urls:
+                for idx, audio_url in enumerate(question_audio_urls):
+                    audio_result = await self.transcribe_audio_from_url(audio_url)
+                    transcriptions[f'audio_{idx}'] = audio_result['transcription']
+                    detected_languages[f'audio_{idx}'] = audio_result['language']
+                    
+                    if audio_result['language'] != 'en' and audio_result['translation']:
+                        translations[f'audio_{idx}_en'] = audio_result['translation']
+                        all_text_content.append(f"Audio {idx+1}: {audio_result['translation']}")
+                    else:
+                        all_text_content.append(f"Audio {idx+1}: {audio_result['transcription']}")
             
-            # Process video (extract audio and transcribe)
-            if question_video_url:
-                # For now, treat video same as audio
-                video_result = await self.transcribe_audio_from_url(question_video_url)
-                transcriptions['video'] = video_result['transcription']
-                detected_languages['video'] = video_result['language']
-                
-                if video_result['language'] != 'en' and video_result['translation']:
-                    translations['video_en'] = video_result['translation']
-                    all_text_content.append(video_result['translation'])
-                else:
-                    all_text_content.append(video_result['transcription'])
+            # Process multiple video files
+            if question_video_urls:
+                for idx, video_url in enumerate(question_video_urls):
+                    # For now, treat video same as audio (extract audio and transcribe)
+                    video_result = await self.transcribe_audio_from_url(video_url)
+                    transcriptions[f'video_{idx}'] = video_result['transcription']
+                    detected_languages[f'video_{idx}'] = video_result['language']
+                    
+                    if video_result['language'] != 'en' and video_result['translation']:
+                        translations[f'video_{idx}_en'] = video_result['translation']
+                        all_text_content.append(f"Video {idx+1}: {video_result['translation']}")
+                    else:
+                        all_text_content.append(f"Video {idx+1}: {video_result['transcription']}")
+            
+            # Process multiple images (placeholder for future)
+            if question_image_urls:
+                for idx, image_url in enumerate(question_image_urls):
+                    # Placeholder: Image analysis will be added in Phase 2
+                    all_text_content.append(f"Image {idx+1}: [Image analysis placeholder]")
             
             # Combine all content
             combined_text = "\n\n".join(filter(None, all_text_content))
