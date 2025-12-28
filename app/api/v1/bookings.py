@@ -200,6 +200,50 @@ async def submit_question(
     await db.commit()
     await db.refresh(booking)
     
+    # Trigger AI processing asynchronously (Phase 1: AI Integration)
+    if settings.enable_ai_summaries:
+        try:
+            from app.services.ai_service import ai_service
+            
+            # Get creator's preferred language
+            creator_result = await db.execute(
+                select(CreatorProfile).filter(CreatorProfile.id == booking.creator_id)
+            )
+            creator = creator_result.scalar_one_or_none()
+            creator_language = creator.language if creator else "en"
+            
+            # Process question with AI
+            booking.ai_processing_status = 'processing'
+            await db.commit()
+            
+            ai_result = await ai_service.process_booking_question(
+                question_text=booking.question_text,
+                question_audio_url=booking.question_audio_url,
+                question_video_url=booking.question_video_url,
+                creator_language=creator_language
+            )
+            
+            # Update booking with AI insights
+            booking.ai_summary = ai_result.get('ai_summary')
+            booking.ai_summary_language = ai_result.get('ai_summary_language')
+            booking.ai_sentiment = ai_result.get('ai_sentiment')
+            booking.ai_stakes = ai_result.get('ai_stakes')
+            booking.ai_key_points = ai_result.get('ai_key_points')
+            booking.detected_languages = ai_result.get('detected_languages')
+            booking.transcriptions = ai_result.get('transcriptions')
+            booking.translations = ai_result.get('translations')
+            booking.ai_processing_status = ai_result.get('ai_processing_status', 'completed')
+            booking.ai_processing_error = ai_result.get('ai_processing_error')
+            
+            await db.commit()
+            await db.refresh(booking)
+        except Exception as e:
+            # Log error but don't fail the request
+            booking.ai_processing_status = 'failed'
+            booking.ai_processing_error = str(e)
+            await db.commit()
+            print(f"AI processing failed for booking {booking.id}: {str(e)}")
+    
     return booking
 
 

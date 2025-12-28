@@ -1,1 +1,2 @@
-# API v1 routes
+from . import ai_insights
+ routes

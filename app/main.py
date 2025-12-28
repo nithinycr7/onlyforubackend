@@ -91,6 +91,9 @@ from app.api.v1 import follow_ups
 app.include_router(follow_ups.router, prefix="/api/v1", tags=["Follow-ups"])
 from app.api.v1 import payments
 app.include_router(payments.router, prefix="/api/v1/payments", tags=["Payments"])
+from app.api.v1 import ai_insights
+app.include_router(ai_insights.router, prefix="/api/v1/ai", tags=["AI Insights"])
+
 
 
 # Global exception handler
