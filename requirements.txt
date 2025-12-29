@@ -35,7 +35,7 @@ pydantic-settings==2.1.0
 email-validator==2.1.0
 
 # HTTP client (pinned for compatibility)
-httpx==0.27.0
+httpx==0.28.1
 
 # Utilities
 python-dateutil==2.8.2
