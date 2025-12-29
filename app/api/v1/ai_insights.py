@@ -12,7 +12,7 @@ from typing import Dict, Any
 from app.db.session import get_db
 from app.db.models import User, Booking, CreatorProfile
 from app.api.deps import get_current_user
-from app.services.ai_service import ai_service
+from app.services.ai_service import get_ai_service
 
 router = APIRouter()
 
@@ -115,6 +115,7 @@ async def regenerate_summary(
     
     # Regenerate AI summary
     try:
+        ai_service = get_ai_service()
         ai_result = await ai_service.process_booking_question(
             question_text=booking.question_text,
             question_audio_url=booking.question_audio_url,

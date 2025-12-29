@@ -369,5 +369,13 @@ Respond in JSON format:
             }
 
 
-# Global AI service instance
-ai_service = AIService()
+# Global AI service instance (lazy-loaded)
+_ai_service_instance: Optional[AIService] = None
+
+
+def get_ai_service() -> AIService:
+    """Get or create the global AI service instance."""
+    global _ai_service_instance
+    if _ai_service_instance is None:
+        _ai_service_instance = AIService()
+    return _ai_service_instance

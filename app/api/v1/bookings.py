@@ -242,7 +242,8 @@ async def submit_question(
     # Trigger AI processing asynchronously (Phase 1: AI Integration)
     if settings.enable_ai_summaries:
         try:
-            from app.services.ai_service import ai_service
+            from app.services.ai_service import get_ai_service
+            ai_service = get_ai_service()
             
             # Get creator's preferred language
             creator_result = await db.execute(
