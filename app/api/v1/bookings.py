@@ -311,9 +311,10 @@ async def list_my_bookings(
     # Transform to BookingWithDetails
     bookings_with_details = []
     for booking, creator in data:
-        # Generate signed URLs for media
-        q_audio = azure_storage.get_signed_url(booking.question_audio_url) if booking.question_audio_url else None
-        q_video = azure_storage.get_signed_url(booking.question_video_url) if booking.question_video_url else None
+        # Generate signed URLs for media lists
+        q_audio = [azure_storage.get_signed_url(url) for url in booking.question_audio_urls] if booking.question_audio_urls else None
+        q_video = [azure_storage.get_signed_url(url) for url in booking.question_video_urls] if booking.question_video_urls else None
+        q_images = [azure_storage.get_signed_url(url) for url in booking.question_image_urls] if booking.question_image_urls else None
         r_media = azure_storage.get_signed_url(booking.response_media_url) if booking.response_media_url else None
 
         booking_dict = {
@@ -323,8 +324,9 @@ async def list_my_bookings(
             'creator_display_name': creator.display_name,
             'creator_slug': creator.slug,
             'amount_paid': float(booking.amount_paid or 0),
-            'question_audio_url': q_audio,
-            'question_video_url': q_video,
+            'question_audio_urls': q_audio,
+            'question_video_urls': q_video,
+            'question_image_urls': q_images,
             'response_media_url': r_media
         }
         bookings_with_details.append(BookingWithDetails(**booking_dict))
@@ -358,12 +360,15 @@ async def get_booking_details(
             detail="Booking not found"
         )
     
-    # Generate signed URLs for media
-    if booking.question_audio_url:
-        booking.question_audio_url = azure_storage.get_signed_url(booking.question_audio_url)
+    # Generate signed URLs for media lists
+    if booking.question_audio_urls:
+        booking.question_audio_urls = [azure_storage.get_signed_url(url) for url in booking.question_audio_urls]
         
-    if booking.question_video_url:
-        booking.question_video_url = azure_storage.get_signed_url(booking.question_video_url)
+    if booking.question_video_urls:
+        booking.question_video_urls = [azure_storage.get_signed_url(url) for url in booking.question_video_urls]
+        
+    if booking.question_image_urls:
+        booking.question_image_urls = [azure_storage.get_signed_url(url) for url in booking.question_image_urls]
     
     if booking.response_media_url:
         booking.response_media_url = azure_storage.get_signed_url(booking.response_media_url)
@@ -458,9 +463,10 @@ async def list_creator_bookings(
     # Transform to CreatorBookingResponse
     bookings_with_fan_details = []
     for booking, fan in data:
-        # Generate signed URLs for media
-        q_audio = azure_storage.get_signed_url(booking.question_audio_url) if booking.question_audio_url else None
-        q_video = azure_storage.get_signed_url(booking.question_video_url) if booking.question_video_url else None
+        # Generate signed URLs for media lists
+        q_audio = [azure_storage.get_signed_url(url) for url in booking.question_audio_urls] if booking.question_audio_urls else None
+        q_video = [azure_storage.get_signed_url(url) for url in booking.question_video_urls] if booking.question_video_urls else None
+        q_images = [azure_storage.get_signed_url(url) for url in booking.question_image_urls] if booking.question_image_urls else None
         r_media = azure_storage.get_signed_url(booking.response_media_url) if booking.response_media_url else None
 
         booking_dict = {
@@ -473,9 +479,11 @@ async def list_creator_bookings(
             'service_subtitle': booking.service_subtitle,
             'question_type': booking.question_type,
             'question_text': booking.question_text,
-            'question_audio_url': q_audio,
-            'question_video_url': q_video,
+            'question_audio_urls': q_audio,
+            'question_video_urls': q_video,
+            'question_image_urls': q_images,
             'question_submitted_at': booking.question_submitted_at,
+            'response_text': booking.response_text,
             'response_media_url': r_media,
             'response_type': booking.response_type,
             'response_submitted_at': booking.response_submitted_at,
@@ -496,6 +504,7 @@ async def submit_creator_response(
     booking_id: UUID,
     response_type: str = Form(...),  # 'voice' or 'video'
     media: UploadFile = File(...),
+    response_text: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -597,6 +606,7 @@ async def submit_creator_response(
     # Update booking
     booking.response_media_url = response_url
     booking.response_type = response_type
+    booking.response_text = response_text
     booking.response_submitted_at = datetime.utcnow()
     booking.status = BookingStatus.COMPLETED
     

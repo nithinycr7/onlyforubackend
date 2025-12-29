@@ -122,6 +122,8 @@ class CreatorProfile(Base):
     vertical = Column(Enum(CreatorVertical), default=CreatorVertical.CONNECT, nullable=False)
     language = Column(String(50), default="telugu")
     social_links = Column(JSONB, nullable=False)  # {"youtube": "url", "instagram": "url"}
+    profile_image_url = Column(Text, nullable=True) # Creator-specific profile image
+    cover_image_url = Column(Text, nullable=True)
     follower_count = Column(Integer, default=0)
     verification_status = Column(Enum(VerificationStatus), default=VerificationStatus.PENDING)
     verified_badge = Column(Boolean, default=False)
@@ -405,6 +407,7 @@ class Booking(Base):
     question_submitted_at = Column(DateTime(timezone=True), nullable=True)
     
     # Response
+    response_text = Column(Text, nullable=True)
     response_media_url = Column(Text, nullable=True)
     response_type = Column(Enum(ResponseType, name="response_type_v2", native_enum=False), nullable=True)
     response_submitted_at = Column(DateTime(timezone=True), nullable=True)

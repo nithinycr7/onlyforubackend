@@ -153,6 +153,13 @@ async def get_creator_profile(
             detail="Creator not found"
         )
     
+    # Generate signed URLs for images
+    from app.utils.azure_storage import azure_storage
+    if creator.profile_image_url:
+        creator.profile_image_url = azure_storage.get_signed_url(creator.profile_image_url)
+    if creator.cover_image_url:
+        creator.cover_image_url = azure_storage.get_signed_url(creator.cover_image_url)
+        
     return creator
 
 
@@ -273,6 +280,13 @@ async def get_my_profile(
             detail="Creator profile not found. Please complete onboarding first."
         )
     
+    # Generate signed URLs for images
+    from app.utils.azure_storage import azure_storage
+    if creator.profile_image_url:
+        creator.profile_image_url = azure_storage.get_signed_url(creator.profile_image_url)
+    if creator.cover_image_url:
+        creator.cover_image_url = azure_storage.get_signed_url(creator.cover_image_url)
+        
     return creator
 
 

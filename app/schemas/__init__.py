@@ -414,9 +414,11 @@ class BookingResponse(BaseModel):
     status: str
     question_type: Optional[str] = None
     question_text: Optional[str] = None
-    question_audio_url: Optional[str] = None
-    question_video_url: Optional[str] = None
+    question_audio_urls: Optional[List[str]] = None
+    question_video_urls: Optional[List[str]] = None
+    question_image_urls: Optional[List[str]] = None
     question_submitted_at: Optional[datetime] = None
+    response_text: Optional[str] = None
     response_media_url: Optional[str] = None
     response_type: Optional[str] = None
     response_submitted_at: Optional[datetime] = None
@@ -457,9 +459,11 @@ class CreatorBookingResponse(BaseModel):
     service_subtitle: Optional[str] = None
     question_type: Optional[str] = None
     question_text: Optional[str] = None
-    question_audio_url: Optional[str] = None
-    question_video_url: Optional[str] = None
+    question_audio_urls: Optional[List[str]] = None
+    question_video_urls: Optional[List[str]] = None
+    question_image_urls: Optional[List[str]] = None
     question_submitted_at: Optional[datetime] = None
+    response_text: Optional[str] = None
     response_media_url: Optional[str] = None
     response_type: Optional[str] = None
     response_submitted_at: Optional[datetime] = None

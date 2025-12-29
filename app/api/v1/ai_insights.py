@@ -118,8 +118,9 @@ async def regenerate_summary(
         ai_service = get_ai_service()
         ai_result = await ai_service.process_booking_question(
             question_text=booking.question_text,
-            question_audio_url=booking.question_audio_url,
-            question_video_url=booking.question_video_url,
+            question_audio_urls=booking.question_audio_urls,
+            question_video_urls=booking.question_video_urls,
+            question_image_urls=booking.question_image_urls,
             creator_language=creator_profile.language or "en"
         )
         
