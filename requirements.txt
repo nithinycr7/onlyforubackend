@@ -34,8 +34,8 @@ pydantic==2.5.3
 pydantic-settings==2.1.0
 email-validator==2.1.0
 
-# HTTP client (version resolved by firebase-admin)
-httpx
+# HTTP client (pinned for compatibility)
+httpx==0.27.0
 
 # Utilities
 python-dateutil==2.8.2
@@ -52,6 +52,6 @@ setuptools>=69.0.0
 firebase-admin==7.1.0
 
 # Azure AI Services (Phase 1: AI Integration)
-openai==1.12.0
+openai==1.54.0
 azure-cognitiveservices-speech==1.35.0
 requests==2.31.0
