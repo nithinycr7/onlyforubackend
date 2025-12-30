@@ -183,21 +183,73 @@ class AIService:
             }
         
         try:
-            # TODO: Download audio file from URL and transcribe
-            # For now, return placeholder
+            import tempfile
+            import os
+            from azure.cognitiveservices.speech import AudioConfig, SpeechRecognizer
+            
             logger.info(f"Transcribing audio from: {audio_url}")
             
-            # This is a placeholder - actual implementation will:
-            # 1. Download audio from Azure Blob
-            # 2. Use Azure Speech SDK to transcribe
-            # 3. Detect language if not provided
-            # 4. Translate to English if needed
+            # 1. Download audio file from URL
+            response = requests.get(audio_url, timeout=30)
+            response.raise_for_status()
             
-            return {
-                'transcription': '[Audio transcription placeholder]',
-                'language': language_hint or 'en',
-                'translation': '[Translation placeholder]'
-            }
+            # 2. Save to temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp_audio:
+                temp_audio.write(response.content)
+                temp_audio_path = temp_audio.name
+            
+            try:
+                # 3. Configure audio input
+                audio_config = AudioConfig(filename=temp_audio_path)
+                
+                # 4. Set up speech recognizer with language detection if no hint
+                if language_hint:
+                    self.speech_config.speech_recognition_language = language_hint
+                else:
+                    # Auto-detect language from common Indian languages + English
+                    self.speech_config.speech_recognition_language = "en-US"
+                
+                speech_recognizer = SpeechRecognizer(
+                    speech_config=self.speech_config,
+                    audio_config=audio_config
+                )
+                
+                # 5. Perform transcription
+                result = speech_recognizer.recognize_once()
+                
+                # 6. Process result
+                if result.reason == ResultReason.RecognizedSpeech:
+                    transcription = result.text
+                    detected_language = result.language if hasattr(result, 'language') else (language_hint or 'en-US')
+                    
+                    logger.info(f"Transcription successful: {transcription[:100]}...")
+                    
+                    # 7. Translate to English if needed
+                    translation = ''
+                    if not detected_language.startswith('en'):
+                        translation = await self.translate_text(
+                            transcription,
+                            source_language=detected_language[:2],
+                            target_language='en'
+                        )
+                    
+                    return {
+                        'transcription': transcription,
+                        'language': detected_language,
+                        'translation': translation
+                    }
+                else:
+                    logger.warning(f"Speech recognition failed: {result.reason}")
+                    return {
+                        'transcription': '',
+                        'language': language_hint or 'en',
+                        'translation': '',
+                        'error': f'Recognition failed: {result.reason}'
+                    }
+            finally:
+                # Clean up temporary file
+                if os.path.exists(temp_audio_path):
+                    os.unlink(temp_audio_path)
         except Exception as e:
             logger.error(f"Audio transcription failed: {str(e)}")
             return {
