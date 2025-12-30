@@ -51,8 +51,7 @@ async def get_current_user(
         select(User)
         .filter(User.id == user_id)
         .options(
-            selectinload(User.creator_profile),
-            selectinload(User.fan_profile)
+            selectinload(User.creator_profile)
         )
     )
     user = result.scalar_one_or_none()
