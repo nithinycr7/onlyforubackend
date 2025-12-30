@@ -44,7 +44,17 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
     
-    result = await db.execute(select(User).filter(User.id == user_id))
+    # Eager load relationships to prevent greenlet errors
+    from sqlalchemy.orm import selectinload
+    
+    result = await db.execute(
+        select(User)
+        .filter(User.id == user_id)
+        .options(
+            selectinload(User.creator_profile),
+            selectinload(User.fan_profile)
+        )
+    )
     user = result.scalar_one_or_none()
     
     if user is None:
