@@ -57,7 +57,13 @@ class PaymentService:
     ) -> bool:
         """
         Verify Razorpay payment signature.
+        Supports mock orders for demo mode.
         """
+        # Fallback for demo mode
+        if razorpay_order_id and razorpay_order_id.startswith("order_mock_"):
+            print(f"✅ Validating mock payment for order: {razorpay_order_id}")
+            return True
+
         try:
             self.client.utility.verify_payment_signature({
                 'razorpay_order_id': razorpay_order_id,
