@@ -4,6 +4,7 @@ WORKDIR /app
 
 # Install system dependencies
 # Install system dependencies
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     build-essential \
@@ -12,9 +13,10 @@ RUN apt-get update && apt-get install -y \
     wget \
     libasound2 \
     libssl-dev \
-    && wget http://snapshot.debian.org/archive/debian/20210326T031405Z/pool/main/o/openssl/libssl1.1_1.1.1n-0%2Bdeb11u3_amd64.deb \
-    && dpkg -i libssl1.1_1.1.1n-0%2Bdeb11u3_amd64.deb \
-    && rm libssl1.1_1.1.1n-0%2Bdeb11u3_amd64.deb \
+    && wget http://security.debian.org/debian-security/pool/updates/main/o/openssl/libssl1.1_1.1.1n-0+deb11u5_amd64.deb \
+    || wget https://packages.microsoft.com/debian/11/prod/pool/main/o/openssl/libssl1.1_1.1.1n-0+deb11u5_amd64.deb \
+    && dpkg -i libssl1.1_1.1.1n-0+deb11u5_amd64.deb \
+    && rm libssl1.1_1.1.1n-0+deb11u5_amd64.deb \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
