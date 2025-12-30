@@ -199,11 +199,32 @@ class AIService:
                 temp_webm.write(response.content)
                 temp_webm_path = temp_webm.name
             
+            file_size = os.path.getsize(temp_webm_path)
+            logger.info(f"Downloaded audio file: {temp_webm_path} ({file_size} bytes)")
+            
+            if file_size == 0:
+                logger.error("Downloaded audio file is empty")
+                return {
+                    'transcription': '',
+                    'language': language_hint or 'en',
+                    'translation': '',
+                    'error': 'Audio file is empty'
+                }
+
             # 3. Convert WebM to WAV for Azure Speech SDK compatibility
             try:
                 from pydub import AudioSegment
+                import subprocess
                 
+                # Check if ffmpeg is available
+                try:
+                    subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
+                    logger.info("ffmpeg is available for audio conversion")
+                except Exception as ffmpeg_err:
+                    logger.warning(f"ffmpeg check failed: {ffmpeg_err}")
+
                 # Load WebM and convert to WAV
+                logger.info(f"Loading audio with pydub: {temp_webm_path}")
                 audio = AudioSegment.from_file(temp_webm_path, format="webm")
                 
                 # Export as WAV (16kHz, mono, 16-bit for best Speech SDK compatibility)
@@ -214,17 +235,25 @@ class AIService:
                     parameters=["-ar", "16000", "-ac", "1"]
                 )
                 
-                logger.info(f"Converted WebM to WAV: {temp_wav_path}")
+                if os.path.exists(temp_wav_path):
+                    wav_size = os.path.getsize(temp_wav_path)
+                    logger.info(f"Converted WebM to WAV: {temp_wav_path} ({wav_size} bytes)")
+                else:
+                    logger.error(f"Failed to create WAV file at {temp_wav_path}")
+                    temp_wav_path = temp_webm_path
                 
             except ImportError:
-                logger.warning("pydub not available, trying WebM directly (may fail)")
+                logger.warning("pydub not available, trying WebM directly")
                 temp_wav_path = temp_webm_path
             except Exception as e:
-                logger.error(f"Audio conversion failed: {e}, trying WebM directly")
+                logger.error(f"Audio conversion failed: {str(e)}")
+                import traceback
+                logger.error(traceback.format_exc())
                 temp_wav_path = temp_webm_path
             
             try:
                 # 4. Configure audio input
+                logger.info(f"Starting Azure Speech recognition for: {temp_wav_path}")
                 audio_config = AudioConfig(filename=temp_wav_path)
                 
                 # 5. Set up auto language detection for Indian languages + English
@@ -436,10 +465,15 @@ Respond in JSON format:
                     transcriptions[f'audio_{idx}'] = audio_result['transcription']
                     detected_languages[f'audio_{idx}'] = audio_result['language']
                     
-                    if audio_result['language'] != 'en' and audio_result['translation']:
+                    if 'error' in audio_result:
+                        if 'errors' not in detected_languages:
+                            detected_languages['errors'] = {}
+                        detected_languages['errors'][f'audio_{idx}'] = audio_result['error']
+                    
+                    if audio_result['language'] != 'en' and audio_result.get('translation'):
                         translations[f'audio_{idx}_en'] = audio_result['translation']
                         all_text_content.append(f"Audio {idx+1}: {audio_result['translation']}")
-                    else:
+                    elif audio_result['transcription']:
                         all_text_content.append(f"Audio {idx+1}: {audio_result['transcription']}")
             
             # Process multiple video files
@@ -450,10 +484,15 @@ Respond in JSON format:
                     transcriptions[f'video_{idx}'] = video_result['transcription']
                     detected_languages[f'video_{idx}'] = video_result['language']
                     
-                    if video_result['language'] != 'en' and video_result['translation']:
+                    if 'error' in video_result:
+                        if 'errors' not in detected_languages:
+                            detected_languages['errors'] = {}
+                        detected_languages['errors'][f'video_{idx}'] = video_result['error']
+                    
+                    if video_result['language'] != 'en' and video_result.get('translation'):
                         translations[f'video_{idx}_en'] = video_result['translation']
                         all_text_content.append(f"Video {idx+1}: {video_result['translation']}")
-                    else:
+                    elif video_result['transcription']:
                         all_text_content.append(f"Video {idx+1}: {video_result['transcription']}")
             
             # Process multiple images (placeholder for future)
