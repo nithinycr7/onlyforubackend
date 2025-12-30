@@ -249,6 +249,7 @@ async def submit_question(
             # Set initial status to processing
             booking.ai_processing_status = 'processing'
             await db.commit()
+            await db.refresh(booking)  # Refresh again to load all attributes before task
             
             # Use asyncio.create_task instead of BackgroundTasks for async DB access
             asyncio.create_task(process_ai_insights_internal(booking.id))
