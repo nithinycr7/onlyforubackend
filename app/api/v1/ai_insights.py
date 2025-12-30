@@ -79,7 +79,6 @@ async def get_ai_summary(
 @router.post("/bookings/{booking_id}/regenerate-summary")
 async def regenerate_summary(
     booking_id: UUID,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -116,14 +115,15 @@ async def regenerate_summary(
     
     # Trigger AI processing asynchronously
     try:
+        import asyncio
         from app.utils.ai_utils import process_ai_insights_internal
         
         # Set status to processing
         booking.ai_processing_status = 'processing'
         await db.commit()
         
-        # Add to background tasks
-        background_tasks.add_task(process_ai_insights_internal, booking.id)
+        # Use asyncio.create_task for async DB access
+        asyncio.create_task(process_ai_insights_internal(booking.id))
         
         return {
             "message": "AI summary regeneration started gracefully in the background",

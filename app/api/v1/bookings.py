@@ -64,7 +64,6 @@ async def create_booking(
 @router.post("/bookings/{booking_id}/question", response_model=BookingResponse)
 async def submit_question(
     booking_id: UUID,
-    background_tasks: BackgroundTasks,
     question_type: str = Form(...),  # 'text', 'audio', 'video', 'image', 'multi'
     question_text: str = Form(None),
     
@@ -243,15 +242,16 @@ async def submit_question(
     # Trigger AI processing asynchronously (Phase 1: AI Integration)
     if settings.enable_ai_summaries:
         try:
+            import asyncio
             from app.utils.ai_utils import process_ai_insights_internal
             
             # Set initial status to processing
             booking.ai_processing_status = 'processing'
             await db.commit()
             
-            # Add to background tasks
-            background_tasks.add_task(process_ai_insights_internal, booking.id)
-            print(f"DEBUG: AI processing added to background tasks for booking {booking.id}")
+            # Use asyncio.create_task instead of BackgroundTasks for async DB access
+            asyncio.create_task(process_ai_insights_internal(booking.id))
+            print(f"DEBUG: AI processing task created for booking {booking.id}")
             
         except Exception as e:
             # Log error but don't fail the request
@@ -317,20 +317,24 @@ async def get_booking_details(
     Returns signed URLs for video playback.
     """
     result = await db.execute(
-        select(Booking).filter(
+        select(Booking, CreatorProfile).join(
+            CreatorProfile, Booking.creator_id == CreatorProfile.id
+        ).filter(
             and_(
                 Booking.id == booking_id,
                 Booking.fan_id == current_user.id
             )
         )
     )
-    booking = result.scalar_one_or_none()
+    row = result.first()
     
-    if not booking:
+    if not row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Booking not found"
         )
+    
+    booking, creator_profile = row
     
     # Generate signed URLs for media lists
     if booking.question_audio_urls:
@@ -344,6 +348,10 @@ async def get_booking_details(
     
     if booking.response_media_url:
         booking.response_media_url = azure_storage.get_signed_url(booking.response_media_url)
+    
+    # Populate creator information
+    booking.creator_display_name = creator_profile.display_name
+    booking.creator_profile_image = azure_storage.get_signed_url(creator_profile.profile_image_url) if creator_profile.profile_image_url else None
     
     return booking
 
