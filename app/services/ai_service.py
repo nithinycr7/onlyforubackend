@@ -15,7 +15,8 @@ from azure.cognitiveservices.speech import (
     SpeechConfig, 
     AudioConfig, 
     SpeechRecognizer,
-    ResultReason
+    ResultReason,
+    AutoDetectSourceLanguageConfig
 )
 import requests
 
@@ -202,17 +203,24 @@ class AIService:
                 # 3. Configure audio input
                 audio_config = AudioConfig(filename=temp_audio_path)
                 
-                # 4. Set up speech recognizer with language detection if no hint
+                # 4. Set up auto language detection for Indian languages + English
                 if language_hint:
+                    # Use specific language if provided
                     self.speech_config.speech_recognition_language = language_hint
+                    speech_recognizer = SpeechRecognizer(
+                        speech_config=self.speech_config,
+                        audio_config=audio_config
+                    )
                 else:
-                    # Auto-detect language from common Indian languages + English
-                    self.speech_config.speech_recognition_language = "en-US"
-                
-                speech_recognizer = SpeechRecognizer(
-                    speech_config=self.speech_config,
-                    audio_config=audio_config
-                )
+                    # Auto-detect from common Indian languages + English
+                    auto_detect_config = AutoDetectSourceLanguageConfig(
+                        languages=["en-US", "hi-IN", "te-IN", "ta-IN", "kn-IN", "ml-IN"]
+                    )
+                    speech_recognizer = SpeechRecognizer(
+                        speech_config=self.speech_config,
+                        audio_config=audio_config,
+                        auto_detect_source_language_config=auto_detect_config
+                    )
                 
                 # 5. Perform transcription
                 result = speech_recognizer.recognize_once()
