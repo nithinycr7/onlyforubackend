@@ -270,6 +270,20 @@ class AIService:
                         'language': detected_language,
                         'translation': translation
                     }
+                elif result.reason == ResultReason.Canceled:
+                    # Get detailed cancellation reason
+                    cancellation = result.cancellation_details
+                    error_details = f"Cancellation reason: {cancellation.reason}"
+                    if cancellation.error_details:
+                        error_details += f", Error: {cancellation.error_details}"
+                    
+                    logger.error(f"Speech recognition canceled: {error_details}")
+                    return {
+                        'transcription': '',
+                        'language': language_hint or 'en',
+                        'translation': '',
+                        'error': error_details
+                    }
                 else:
                     logger.warning(f"Speech recognition failed: {result.reason}")
                     return {
