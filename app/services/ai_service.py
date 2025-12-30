@@ -194,16 +194,40 @@ class AIService:
             response = requests.get(audio_url, timeout=30)
             response.raise_for_status()
             
-            # 2. Save to temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp_audio:
-                temp_audio.write(response.content)
-                temp_audio_path = temp_audio.name
+            # 2. Save to temporary file (WebM format from browser)
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp_webm:
+                temp_webm.write(response.content)
+                temp_webm_path = temp_webm.name
+            
+            # 3. Convert WebM to WAV for Azure Speech SDK compatibility
+            try:
+                from pydub import AudioSegment
+                
+                # Load WebM and convert to WAV
+                audio = AudioSegment.from_file(temp_webm_path, format="webm")
+                
+                # Export as WAV (16kHz, mono, 16-bit for best Speech SDK compatibility)
+                temp_wav_path = temp_webm_path.replace('.webm', '.wav')
+                audio.export(
+                    temp_wav_path,
+                    format="wav",
+                    parameters=["-ar", "16000", "-ac", "1"]
+                )
+                
+                logger.info(f"Converted WebM to WAV: {temp_wav_path}")
+                
+            except ImportError:
+                logger.warning("pydub not available, trying WebM directly (may fail)")
+                temp_wav_path = temp_webm_path
+            except Exception as e:
+                logger.error(f"Audio conversion failed: {e}, trying WebM directly")
+                temp_wav_path = temp_webm_path
             
             try:
-                # 3. Configure audio input
-                audio_config = AudioConfig(filename=temp_audio_path)
+                # 4. Configure audio input
+                audio_config = AudioConfig(filename=temp_wav_path)
                 
-                # 4. Set up auto language detection for Indian languages + English
+                # 5. Set up auto language detection for Indian languages + English
                 if language_hint:
                     # Use specific language if provided
                     self.speech_config.speech_recognition_language = language_hint
@@ -214,7 +238,7 @@ class AIService:
                 else:
                     # Auto-detect from common Indian languages + English
                     auto_detect_config = AutoDetectSourceLanguageConfig(
-                        languages=["en-US", "hi-IN", "te-IN", "ta-IN", "kn-IN", "ml-IN"]
+                        languages=["en-US", "hi-IN", "te-IN"]
                     )
                     speech_recognizer = SpeechRecognizer(
                         speech_config=self.speech_config,
@@ -222,17 +246,17 @@ class AIService:
                         auto_detect_source_language_config=auto_detect_config
                     )
                 
-                # 5. Perform transcription
+                # 6. Perform transcription
                 result = speech_recognizer.recognize_once()
                 
-                # 6. Process result
+                # 7. Process result
                 if result.reason == ResultReason.RecognizedSpeech:
                     transcription = result.text
                     detected_language = result.language if hasattr(result, 'language') else (language_hint or 'en-US')
                     
                     logger.info(f"Transcription successful: {transcription[:100]}...")
                     
-                    # 7. Translate to English if needed
+                    # 8. Translate to English if needed
                     translation = ''
                     if not detected_language.startswith('en'):
                         translation = await self.translate_text(
@@ -255,9 +279,11 @@ class AIService:
                         'error': f'Recognition failed: {result.reason}'
                     }
             finally:
-                # Clean up temporary file
-                if os.path.exists(temp_audio_path):
-                    os.unlink(temp_audio_path)
+                # Clean up temporary files
+                if os.path.exists(temp_webm_path):
+                    os.unlink(temp_webm_path)
+                if 'temp_wav_path' in locals() and os.path.exists(temp_wav_path) and temp_wav_path != temp_webm_path:
+                    os.unlink(temp_wav_path)
         except Exception as e:
             logger.error(f"Audio transcription failed: {str(e)}")
             return {
