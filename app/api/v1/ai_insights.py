@@ -3,7 +3,7 @@ AI Insights API Endpoints
 Provides AI-generated summaries, sentiment analysis, and processing status for bookings.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from uuid import UUID
@@ -79,6 +79,7 @@ async def get_ai_summary(
 @router.post("/bookings/{booking_id}/regenerate-summary")
 async def regenerate_summary(
     booking_id: UUID,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -113,34 +114,27 @@ async def regenerate_summary(
             detail="Booking not found"
         )
     
-    # Regenerate AI summary
+    # Trigger AI processing asynchronously
     try:
-        ai_service = get_ai_service()
-        ai_result = await ai_service.process_booking_question(
-            question_text=booking.question_text,
-            question_audio_urls=booking.question_audio_urls,
-            question_video_urls=booking.question_video_urls,
-            question_image_urls=booking.question_image_urls,
-            creator_language=creator_profile.language or "en"
-        )
+        from app.utils.ai_utils import process_ai_insights_internal
         
-        # Update booking with new AI insights
-        booking.ai_summary = ai_result.get('ai_summary')
-        booking.ai_sentiment = ai_result.get('ai_sentiment')
-        booking.ai_stakes = ai_result.get('ai_stakes')
-        booking.ai_key_points = ai_result.get('ai_key_points')
-        booking.ai_processing_status = ai_result.get('ai_processing_status')
-        
+        # Set status to processing
+        booking.ai_processing_status = 'processing'
         await db.commit()
-        await db.refresh(booking)
+        
+        # Add to background tasks
+        background_tasks.add_task(process_ai_insights_internal, booking.id)
         
         return {
-            "message": "AI summary regenerated successfully",
-            "ai_summary": booking.ai_summary,
-            "ai_sentiment": booking.ai_sentiment,
-            "ai_stakes": booking.ai_stakes,
-            "ai_key_points": booking.ai_key_points
+            "message": "AI summary regeneration started gracefully in the background",
+            "booking_id": str(booking.id),
+            "status": "processing"
         }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to start summary regeneration: {str(e)}"
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

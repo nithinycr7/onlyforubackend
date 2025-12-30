@@ -29,12 +29,12 @@ class AIService:
     
     def __init__(self):
         """Initialize Azure AI clients."""
-        # Azure OpenAI client
+        # Azure OpenAI client (following official Azure sample pattern)
         if settings.azure_openai_api_key and settings.azure_openai_endpoint:
             self.openai_client = AzureOpenAI(
-                api_key=settings.azure_openai_api_key,
                 api_version=settings.azure_openai_api_version,
-                azure_endpoint=settings.azure_openai_endpoint
+                azure_endpoint=settings.azure_openai_endpoint,
+                api_key=settings.azure_openai_api_key
             )
         else:
             self.openai_client = None
@@ -73,7 +73,13 @@ class AIService:
             }
             body = [{'text': text[:1000]}]  # Limit to 1000 chars for detection
             
-            response = requests.post(endpoint, headers=headers, json=body, params={'api-version': '3.0'})
+            response = requests.post(
+                endpoint, 
+                headers=headers, 
+                json=body, 
+                params={'api-version': '3.0'},
+                timeout=10
+            )
             response.raise_for_status()
             
             result = response.json()
@@ -119,7 +125,13 @@ class AIService:
             
             body = [{'text': text}]
             
-            response = requests.post(endpoint, headers=headers, json=body, params=params)
+            response = requests.post(
+                endpoint, 
+                headers=headers, 
+                json=body, 
+                params=params,
+                timeout=10
+            )
             response.raise_for_status()
             
             result = response.json()
@@ -235,7 +247,8 @@ Respond in JSON format:
                 ],
                 temperature=0.3,
                 max_tokens=500,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
+                timeout=30.0
             )
             
             # Parse response

@@ -3,7 +3,7 @@ Booking API Endpoints
 Handles consultation bookings between fans and creators
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from typing import List, Optional
@@ -64,6 +64,7 @@ async def create_booking(
 @router.post("/bookings/{booking_id}/question", response_model=BookingResponse)
 async def submit_question(
     booking_id: UUID,
+    background_tasks: BackgroundTasks,
     question_type: str = Form(...),  # 'text', 'audio', 'video', 'image', 'multi'
     question_text: str = Form(None),
     
@@ -242,48 +243,19 @@ async def submit_question(
     # Trigger AI processing asynchronously (Phase 1: AI Integration)
     if settings.enable_ai_summaries:
         try:
-            from app.services.ai_service import get_ai_service
-            ai_service = get_ai_service()
+            from app.utils.ai_utils import process_ai_insights_internal
             
-            # Get creator's preferred language
-            creator_result = await db.execute(
-                select(CreatorProfile).filter(CreatorProfile.id == booking.creator_id)
-            )
-            creator = creator_result.scalar_one_or_none()
-            creator_language = creator.language if creator else "en"
-            
-            # Process question with AI
+            # Set initial status to processing
             booking.ai_processing_status = 'processing'
             await db.commit()
             
-            ai_result = await ai_service.process_booking_question(
-                question_text=booking.question_text,
-                question_audio_urls=booking.question_audio_urls,
-                question_video_urls=booking.question_video_urls,
-                question_image_urls=booking.question_image_urls,
-                creator_language=creator_language
-            )
+            # Add to background tasks
+            background_tasks.add_task(process_ai_insights_internal, booking.id)
+            print(f"DEBUG: AI processing added to background tasks for booking {booking.id}")
             
-            # Update booking with AI insights
-            booking.ai_summary = ai_result.get('ai_summary')
-            booking.ai_summary_language = ai_result.get('ai_summary_language')
-            booking.ai_sentiment = ai_result.get('ai_sentiment')
-            booking.ai_stakes = ai_result.get('ai_stakes')
-            booking.ai_key_points = ai_result.get('ai_key_points')
-            booking.detected_languages = ai_result.get('detected_languages')
-            booking.transcriptions = ai_result.get('transcriptions')
-            booking.translations = ai_result.get('translations')
-            booking.ai_processing_status = ai_result.get('ai_processing_status', 'completed')
-            booking.ai_processing_error = ai_result.get('ai_processing_error')
-            
-            await db.commit()
-            await db.refresh(booking)
         except Exception as e:
             # Log error but don't fail the request
-            booking.ai_processing_status = 'failed'
-            booking.ai_processing_error = str(e)
-            await db.commit()
-            print(f"AI processing failed for booking {booking.id}: {str(e)}")
+            print(f"ERROR: Failed to start background AI processing for booking {booking.id}: {str(e)}")
     
     return booking
 

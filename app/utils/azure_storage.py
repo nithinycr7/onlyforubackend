@@ -16,12 +16,18 @@ class AzureStorageService:
     def __init__(self):
         # Get Azure credentials from environment
         self.connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
+        self.account_name = os.getenv("AZURE_STORAGE_ACCOUNT_NAME", "")
+        self.account_key = os.getenv("AZURE_STORAGE_ACCOUNT_KEY", "")
         self.container_name = os.getenv("AZURE_STORAGE_CONTAINER", "usersdemo")
         
-        if not self.connection_string:
-            raise ValueError("AZURE_STORAGE_CONNECTION_STRING environment variable is required")
-        
-        self.blob_service_client = BlobServiceClient.from_connection_string(self.connection_string)
+        if self.connection_string:
+            self.blob_service_client = BlobServiceClient.from_connection_string(self.connection_string)
+        elif self.account_name and self.account_key:
+            self.connection_string = f"DefaultEndpointsProtocol=https;AccountName={self.account_name};AccountKey={self.account_key};EndpointSuffix=core.windows.net"
+            self.blob_service_client = BlobServiceClient.from_connection_string(self.connection_string)
+        else:
+            raise ValueError("Either AZURE_STORAGE_CONNECTION_STRING or both AZURE_STORAGE_ACCOUNT_NAME and AZURE_STORAGE_ACCOUNT_KEY must be provided")
+            
         self._ensure_container_exists()
     
     def _ensure_container_exists(self):
