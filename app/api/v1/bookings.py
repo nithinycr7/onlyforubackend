@@ -18,6 +18,7 @@ from app.schemas import (
 )
 from app.api.deps import get_current_user
 from app.utils.azure_storage import azure_storage
+from app.core.config import settings
 
 router = APIRouter()
 
