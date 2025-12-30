@@ -88,7 +88,7 @@ class Settings(BaseSettings):
     max_video_duration_secs: int = 300  # 5 minutes
     
     # CORS
-    cors_origins: str = "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001"
+    cors_origins: str = "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001,https://onlyforufrontend.onrender.com"
     
     # Platform Settings
     platform_fee_percentage: int = 15
