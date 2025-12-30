@@ -425,6 +425,7 @@ Respond in JSON format:
         question_audio_urls: Optional[List[str]] = None,
         question_video_urls: Optional[List[str]] = None,
         question_image_urls: Optional[List[str]] = None,
+        question_form_data: Optional[Dict[str, Any]] = None,
         creator_language: str = "en"
     ) -> Dict[str, Any]:
         """
@@ -499,7 +500,14 @@ Respond in JSON format:
             if question_image_urls:
                 for idx, image_url in enumerate(question_image_urls):
                     # Placeholder: Image analysis will be added in Phase 2
-                    all_text_content.append(f"Image {idx+1}: [Image analysis placeholder]")
+                    all_text_content.append(f"Image {idx+1}: [Image attached]")
+
+            # Process niche-specific form data
+            if question_form_data:
+                form_text = "Structured Context:\n"
+                for field, value in question_form_data.items():
+                    form_text += f"- {field.replace('_', ' ').capitalize()}: {value}\n"
+                all_text_content.append(form_text)
             
             # Combine all content
             combined_text = "\n\n".join(filter(None, all_text_content))

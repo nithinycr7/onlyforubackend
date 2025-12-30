@@ -59,6 +59,7 @@ async def process_ai_insights_internal(booking_id: UUID):
                 question_audio_urls=signed_audio_urls,
                 question_video_urls=signed_video_urls,
                 question_image_urls=signed_image_urls,
+                question_form_data=booking.question_form_data, # Pass structured context
                 creator_language=creator_language or "en"
             )
             

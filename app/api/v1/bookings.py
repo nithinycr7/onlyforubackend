@@ -10,6 +10,7 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timedelta
 
+import json
 from app.db.session import get_db
 from app.db.models import User, CreatorProfile, ServicePackage, Booking, BookingStatus, FollowUpMessage
 from app.schemas import (
@@ -72,6 +73,7 @@ async def submit_question(
     audio_files: List[UploadFile] = File(None),
     video_files: List[UploadFile] = File(None),
     image_files: List[UploadFile] = File(None),
+    form_data: str = Form(None), # JSON string of niche-specific answers
     
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -149,6 +151,17 @@ async def submit_question(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Maximum {MAX_IMAGE_FILES} image files allowed"
         )
+    
+    # Parse form_data if present
+    parsed_form_data = None
+    if form_data:
+        try:
+            parsed_form_data = json.loads(form_data)
+        except json.JSONDecodeError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid JSON format for form_data"
+            )
     
     # Upload all media files
     audio_urls = []
@@ -234,6 +247,7 @@ async def submit_question(
     booking.question_audio_urls = audio_urls if audio_urls else None
     booking.question_video_urls = video_urls if video_urls else None
     booking.question_image_urls = image_urls if image_urls else None
+    booking.question_form_data = parsed_form_data
     booking.question_submitted_at = datetime.utcnow()
     booking.status = BookingStatus.AWAITING_RESPONSE
     
@@ -274,8 +288,9 @@ async def list_my_bookings(
     # Join with CreatorProfile used to get creator details.
     # Service details are now on Booking model directly.
     result = await db.execute(
-        select(Booking, CreatorProfile)
+        select(Booking, CreatorProfile, ServicePackage)
         .join(CreatorProfile, Booking.creator_id == CreatorProfile.id)
+        .outerjoin(ServicePackage, Booking.service_id == ServicePackage.id)
         .filter(Booking.fan_id == current_user.id)
         .order_by(Booking.created_at.desc())
     )
@@ -284,7 +299,7 @@ async def list_my_bookings(
     
     # Transform to BookingWithDetails
     bookings_with_details = []
-    for booking, creator in data:
+    for booking, creator, service_package in data:
         # Generate signed URLs for media lists
         q_audio = [azure_storage.get_signed_url(url) for url in booking.question_audio_urls] if booking.question_audio_urls else None
         q_video = [azure_storage.get_signed_url(url) for url in booking.question_video_urls] if booking.question_video_urls else None
@@ -301,7 +316,8 @@ async def list_my_bookings(
             'question_audio_urls': q_audio,
             'question_video_urls': q_video,
             'question_image_urls': q_images,
-            'response_media_url': r_media
+            'response_media_url': r_media,
+            'question_form_template': service_package.question_form_template if service_package else None
         }
         bookings_with_details.append(BookingWithDetails(**booking_dict))
     
@@ -319,9 +335,10 @@ async def get_booking_details(
     Returns signed URLs for video playback.
     """
     result = await db.execute(
-        select(Booking, CreatorProfile).join(
-            CreatorProfile, Booking.creator_id == CreatorProfile.id
-        ).filter(
+        select(Booking, CreatorProfile, ServicePackage)
+        .join(CreatorProfile, Booking.creator_id == CreatorProfile.id)
+        .outerjoin(ServicePackage, Booking.service_id == ServicePackage.id)
+        .filter(
             and_(
                 Booking.id == booking_id,
                 Booking.fan_id == current_user.id
@@ -336,7 +353,7 @@ async def get_booking_details(
             detail="Booking not found"
         )
     
-    booking, creator_profile = row
+    booking, creator_profile, service_package = row
     
     # Generate signed URLs for media lists
     if booking.question_audio_urls:
@@ -351,9 +368,10 @@ async def get_booking_details(
     if booking.response_media_url:
         booking.response_media_url = azure_storage.get_signed_url(booking.response_media_url)
     
-    # Populate creator information
+    # Populate creator and template information
     booking.creator_display_name = creator_profile.display_name
     booking.creator_profile_image = azure_storage.get_signed_url(creator_profile.profile_image_url) if creator_profile.profile_image_url else None
+    booking.question_form_template = service_package.question_form_template if service_package else None
     
     return booking
 

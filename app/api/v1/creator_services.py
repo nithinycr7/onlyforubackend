@@ -6,15 +6,35 @@ Handles CRUD operations for creator profiles and consultation services
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from app.db.session import get_db
-from app.db.models import User, CreatorProfile, ServicePackage
-from app.schemas import ServicePackageCreate, ServicePackageUpdate, ServicePackageResponse
+from app.db.models import User, CreatorProfile, ServicePackage, ServiceTemplate
+from app.schemas import ServicePackageCreate, ServicePackageUpdate, ServicePackageResponse, ServiceTemplateResponse
 from app.api.deps import get_current_user, get_current_creator
 
 router = APIRouter()
+
+
+# ============= Template Discovery =============
+
+@router.get("/services/templates", response_model=List[ServiceTemplateResponse])
+async def list_service_templates(
+    sector: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    List all available service templates.
+    Optional filter by sector.
+    """
+    query = select(ServiceTemplate).filter(ServiceTemplate.is_active == True)
+    if sector:
+        query = query.filter(ServiceTemplate.sector == sector)
+    
+    result = await db.execute(query.order_by(ServiceTemplate.sector, ServiceTemplate.title))
+    templates = result.scalars().all()
+    return templates
 
 
 # ============= Service Management Endpoints =============

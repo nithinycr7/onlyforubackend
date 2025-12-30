@@ -101,6 +101,7 @@ class ServicePackageCreate(BaseModel):
     max_slots_per_month: Optional[int] = Field(None, ge=1, le=1000)
     is_popular: bool = False
     display_order: int = 0
+    question_form_template: Optional[Dict] = None # The JSON blueprint for extra fields
     
     @validator('response_modes')
     def validate_response_modes(cls, v):
@@ -126,6 +127,7 @@ class ServicePackageUpdate(BaseModel):
     is_popular: Optional[bool] = None
     is_active: Optional[bool] = None
     display_order: Optional[int] = None
+    question_form_template: Optional[Dict] = None # The JSON blueprint for extra fields
 
 
 class ServicePackageResponse(BaseModel):
@@ -147,6 +149,7 @@ class ServicePackageResponse(BaseModel):
     is_active: bool
     is_popular: bool
     display_order: int
+    question_form_template: Optional[Dict] = None
     # System-populated fields
     current_slots_used: int
     avg_rating: float
@@ -155,6 +158,20 @@ class ServicePackageResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     
+    class Config:
+        from_attributes = True
+
+
+class ServiceTemplateResponse(BaseModel):
+    """Service template response."""
+    id: UUID
+    sector: str
+    title: str
+    description: Optional[str]
+    suggested_price_inr: Optional[float]
+    question_form_template: Optional[Dict]
+    is_active: bool
+
     class Config:
         from_attributes = True
 
@@ -411,12 +428,14 @@ class BookingResponse(BaseModel):
     service_id: Optional[UUID] = None
     service_title: Optional[str] = None
     service_subtitle: Optional[str] = None
+    question_form_template: Optional[Dict] = None # Added for dynamic context forms
     status: str
     question_type: Optional[str] = None
     question_text: Optional[str] = None
     question_audio_urls: Optional[List[str]] = None
     question_video_urls: Optional[List[str]] = None
     question_image_urls: Optional[List[str]] = None
+    question_form_data: Optional[Dict] = None
     question_submitted_at: Optional[datetime] = None
     response_text: Optional[str] = None
     response_media_url: Optional[str] = None
@@ -440,6 +459,7 @@ class BookingWithDetails(BookingResponse):
     creator_display_name: str
     creator_slug: str
     amount_paid: float
+    question_form_template: Optional[Dict] = None # Added for dynamic context forms
 
 
 class RatingSubmit(BaseModel):
@@ -462,6 +482,7 @@ class CreatorBookingResponse(BaseModel):
     question_audio_urls: Optional[List[str]] = None
     question_video_urls: Optional[List[str]] = None
     question_image_urls: Optional[List[str]] = None
+    question_form_data: Optional[Dict] = None
     question_submitted_at: Optional[datetime] = None
     response_text: Optional[str] = None
     response_media_url: Optional[str] = None

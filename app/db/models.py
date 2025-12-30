@@ -146,6 +146,21 @@ class CreatorProfile(Base):
     )
 
 
+class ServiceTemplate(Base):
+    """Global library of predefined service blueprints for various sectors."""
+    __tablename__ = "service_templates"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    sector = Column(String(50), nullable=False, index=True) # Astrology, Content Growth, etc.
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    suggested_price_inr = Column(DECIMAL(10, 2), nullable=True)
+    question_form_template = Column(JSONB, nullable=True) # The JSON blueprint for extra fields
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class ServicePackage(Base):
     """Service packages (consultation services) that creators sell."""
     __tablename__ = "service_packages"
@@ -169,6 +184,9 @@ class ServicePackage(Base):
     is_active = Column(Boolean, default=True)
     is_popular = Column(Boolean, default=False)
     display_order = Column(Integer, default=0)
+    
+    # Niche-specific context fields (Blueprint)
+    question_form_template = Column(JSONB, nullable=True) # The JSON blueprint for extra fields
     
     # SYSTEM-POPULATED FIELDS
     current_slots_used = Column(Integer, default=0)
@@ -403,6 +421,9 @@ class Booking(Base):
     question_audio_urls = Column(JSONB, nullable=True)  # ["url1", "url2", ...]
     question_video_urls = Column(JSONB, nullable=True)  # ["url1", "url2", ...]
     question_image_urls = Column(JSONB, nullable=True)  # ["url1", "url2", ...]
+    
+    # Structured answers for niche-specific forms
+    question_form_data = Column(JSONB, nullable=True)  # {"dob": "...", "channel": "..."}
     
     question_submitted_at = Column(DateTime(timezone=True), nullable=True)
     
