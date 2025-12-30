@@ -12,11 +12,10 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     wget \
     libasound2 \
-    libssl-dev \
-    && wget http://security.debian.org/debian-security/pool/updates/main/o/openssl/libssl1.1_1.1.1n-0+deb11u5_amd64.deb \
-    || wget https://packages.microsoft.com/debian/11/prod/pool/main/o/openssl/libssl1.1_1.1.1n-0+deb11u5_amd64.deb \
-    && dpkg -i libssl1.1_1.1.1n-0+deb11u5_amd64.deb \
-    && rm libssl1.1_1.1.1n-0+deb11u5_amd64.deb \
+    && echo "deb http://deb.debian.org/debian bullseye main" > /etc/apt/sources.list.d/bullseye.list \
+    && apt-get update \
+    && apt-get install -y libssl1.1 \
+    && rm /etc/apt/sources.list.d/bullseye.list \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
