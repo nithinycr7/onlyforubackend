@@ -52,6 +52,6 @@ setuptools>=69.0.0
 firebase-admin==7.1.0
 
 # Azure AI Services (Phase 1: AI Integration)
-openai==1.54.0
+openai>=1.55.3
 azure-cognitiveservices-speech==1.35.0
 requests==2.31.0

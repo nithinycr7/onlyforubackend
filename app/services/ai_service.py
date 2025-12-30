@@ -31,11 +31,28 @@ class AIService:
         """Initialize Azure AI clients."""
         # Azure OpenAI client (following official Azure sample pattern)
         if settings.azure_openai_api_key and settings.azure_openai_endpoint:
-            self.openai_client = AzureOpenAI(
-                api_version=settings.azure_openai_api_version,
-                azure_endpoint=settings.azure_openai_endpoint,
-                api_key=settings.azure_openai_api_key
-            )
+            try:
+                # Try standard initialization
+                self.openai_client = AzureOpenAI(
+                    api_version=settings.azure_openai_api_version,
+                    azure_endpoint=settings.azure_openai_endpoint,
+                    api_key=settings.azure_openai_api_key
+                )
+                logger.info("Azure OpenAI client initialized successfully")
+            except TypeError as e:
+                # Fallback: Some environments may have issues with certain parameters
+                logger.warning(f"Standard OpenAI init failed ({e}), trying minimal init")
+                try:
+                    # Minimal initialization without optional parameters
+                    self.openai_client = AzureOpenAI(
+                        azure_endpoint=settings.azure_openai_endpoint,
+                        api_key=settings.azure_openai_api_key,
+                        api_version=settings.azure_openai_api_version
+                    )
+                    logger.info("Azure OpenAI client initialized with fallback method")
+                except Exception as fallback_error:
+                    logger.error(f"All OpenAI initialization methods failed: {fallback_error}")
+                    self.openai_client = None
         else:
             self.openai_client = None
             logger.warning("Azure OpenAI credentials not configured")
