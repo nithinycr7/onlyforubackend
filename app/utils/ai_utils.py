@@ -31,17 +31,38 @@ async def process_ai_insights_internal(booking_id: UUID):
             creator = creator_result.scalar_one_or_none()
             creator_language = creator.language if creator else "en"
             
-            # 3. Call AI service
+            # 3. Generate signed URLs for media (required for private blob access)
+            from app.utils.azure_storage import azure_storage
+            
+            signed_audio_urls = []
+            if booking.question_audio_urls:
+                signed_audio_urls = [
+                    azure_storage.get_signed_url(url) for url in booking.question_audio_urls
+                ]
+            
+            signed_video_urls = []
+            if booking.question_video_urls:
+                signed_video_urls = [
+                    azure_storage.get_signed_url(url) for url in booking.question_video_urls
+                ]
+            
+            signed_image_urls = []
+            if booking.question_image_urls:
+                signed_image_urls = [
+                    azure_storage.get_signed_url(url) for url in booking.question_image_urls
+                ]
+            
+            # 4. Call AI service with signed URLs
             ai_service = get_ai_service()
             ai_result = await ai_service.process_booking_question(
                 question_text=booking.question_text,
-                question_audio_urls=booking.question_audio_urls,
-                question_video_urls=booking.question_video_urls,
-                question_image_urls=booking.question_image_urls,
+                question_audio_urls=signed_audio_urls,
+                question_video_urls=signed_video_urls,
+                question_image_urls=signed_image_urls,
                 creator_language=creator_language or "en"
             )
             
-            # 4. Update booking with results
+            # 5. Update booking with results
             booking.ai_summary = ai_result.get('ai_summary')
             booking.ai_summary_language = ai_result.get('ai_summary_language')
             booking.ai_sentiment = ai_result.get('ai_sentiment')
